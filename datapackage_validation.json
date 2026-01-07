@@ -5,7 +5,7 @@
   "tasks": [
     {
       "resource": {
-        "description": "Insira a descrição/explicação detalhada deste recurso.",
+        "description": "Lista das empresas sancionadas com base na Lei Anticorrupção – Lei Federal nº 12.846/2013.",
         "dialect": {
           "delimiter": ";"
         },
@@ -80,7 +80,7 @@
           ]
         },
         "scheme": "file",
-        "title": "Insira um título humanamente legível para este recurso.",
+        "title": "Empresas Sancionadas pela Lei Anticorrupcao",
         "stats": {
           "hash": "9cc9b319df955ffffaca04a34fb92f67",
           "bytes": 12198,
