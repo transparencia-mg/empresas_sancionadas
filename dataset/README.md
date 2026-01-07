@@ -1,5 +1,3 @@
-# Readme: Empresas Sancionadas pela Lei Anticorrupção em Minas Gerais
-
 ## 📄 Visão Geral do Conjunto de Dados
 Este conjunto de dados contém informações sobre **empresas sancionadas com base na Lei Anticorrupção (Lei Federal nº 12.846/2013)** no âmbito do Estado de Minas Gerais. Os registros documentam processos administrativos conduzidos pela Controladoria-Geral do Estado de Minas Gerais (CGE/MG), em parceria com a Advocacia-Geral do Estado (AGE/MG) e com apoio do Ministério Público de Minas Gerais (MPMG).
 
@@ -36,3 +34,4 @@ A Lei Anticorrupção (Lei nº 12.846/2013) estabelece a responsabilidade objeti
 | `decisao` | String | Decisão aplicada (tipo de sanção) | "Aplicação de multa", "Acordo de Leniência" |
 | `fase` | String | Fase atual do processo | "Encerrado", "Em recurso", "Cumprimento de acordo" |
 | `valor_multa` | Decimal | Valor da multa aplicada (se houver) | 1500000.00 |
+
