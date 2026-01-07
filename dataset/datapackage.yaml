@@ -2,7 +2,7 @@ name: empresas_sancionadas
 owner_org: controladoria-geral-do-estado-cge
 profile: data-package
 resources:
-  - description: Insira a descrição/explicação detalhada deste recurso.
+  - description: Lista das empresas sancionadas com base na Lei Anticorrupção – Lei Federal nº 12.846/2013.
     dialect:
       delimiter: ;
     encoding: utf-8-sig
@@ -44,5 +44,5 @@ resources:
         - name: valor_multa
           type: string
     scheme: file
-    title: Insira um título humanamente legível para este recurso.
-title: Empresas_sancionadas
+    title: Empresas Sancionadas pela Lei Anticorrupcao
+title: Empresas Sancionadas pela Lei Anticorrupção
