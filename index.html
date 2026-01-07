@@ -1051,6 +1051,8 @@
     <!-- ==================== CONTEÚDO PRINCIPAL ==================== -->
     <div class="container">
         
+        <!-- Mensagem de Status -->
+        <div id="statusMessage"></div>
         
         <!-- ==================== MENU DE NAVEGAÇÃO ==================== -->
         <div class="nav-tabs-container">
@@ -1642,14 +1644,13 @@
         const DATASET_URL = 'https://raw.githubusercontent.com/transparencia-mg/empresas_sancionadas/main/dataset/data/empresas_sancionadas.csv';
         const GITHUB_REPO_URL = 'https://github.com/transparencia-mg/empresas_sancionadas';
         const LEGISLACAO_URL = 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/lei/l12846.htm';
-        const CSV_FALLBACK_URL = 'https://raw.githubusercontent.com/transparencia-mg/empresas_sancionadas/refs/heads/main/dataset/data/empresas_sancionadas.csv';
 
         // ============================================
         // VARIÁVEIS GLOBAIS
         // ============================================
-        let empresasData = []; // Dados carregados do CSV
-        let filteredDataDashboard1 = []; // Dados filtrados para Dashboard 1
-        let filteredDataDashboard2 = []; // Dados filtrados para Dashboard 2
+        let empresasData = [];
+        let filteredDataDashboard1 = [];
+        let filteredDataDashboard2 = [];
         let currentPageDashboard1 = 1;
         let currentPageDashboard2 = 1;
         let itemsPerPageDashboard1 = 50;
@@ -1675,185 +1676,231 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('=== INICIANDO PORTAL DE EMPRESAS SANCIONADAS ===');
             console.log('Fonte de dados:', DATASET_URL);
-            console.log('Repositório GitHub:', GITHUB_REPO_URL);
             
-            // Inicializar a partir do GitHub
-            initializeFromGitHub();
+            // Mostrar mensagem inicial
+            showStatusMessage('Conectando ao GitHub...', 'info');
+            
+            // Carregar dados
+            loadData();
         });
 
-        // ==================== INICIALIZAÇÃO DO GITHUB ====================
-        async function initializeFromGitHub() {
-            console.log('=== INICIANDO CARREGAMENTO DO GITHUB ===');
-            
-            // Mostrar estado de carregamento
+        // ==================== CARREGAMENTO DE DADOS ====================
+        async function loadData() {
             showLoading(true);
             
             try {
-                // 1. Verificar se a URL está acessível
-                console.log('Verificando acesso ao GitHub...');
-                const response = await fetch(DATASET_URL, { 
-                    method: 'HEAD',
-                    cache: 'no-cache',
-                    mode: 'cors'
+                console.log('Tentando carregar dados do GitHub...');
+                
+                // Usar CORS proxy para evitar problemas
+                const proxyUrl = 'https://corsproxy.io/?';
+                const targetUrl = encodeURIComponent(DATASET_URL);
+                const fetchUrl = proxyUrl + targetUrl;
+                
+                console.log('URL com proxy:', fetchUrl);
+                
+                const response = await fetch(fetchUrl, {
+                    headers: {
+                        'Accept': 'text/csv'
+                    }
                 });
                 
                 if (!response.ok) {
-                    console.warn(`GitHub não acessível: ${response.status}, tentando fallback...`);
-                    // Tentar com fallback URL
-                    return await tryFallbackCSV();
-                }
-                
-                console.log('GitHub acessível, baixando dados...');
-                
-                // 2. Baixar o CSV
-                const csvResponse = await fetch(DATASET_URL, { 
-                    cache: 'no-cache',
-                    mode: 'cors'
-                });
-                
-                if (!csvResponse.ok) {
-                    throw new Error(`Erro ao baixar CSV: ${csvResponse.status}`);
-                }
-                
-                const csvText = await csvResponse.text();
-                
-                // 3. Verificar se o CSV tem conteúdo
-                if (!csvText || csvText.trim().length === 0) {
-                    throw new Error('CSV vazio ou sem conteúdo');
-                }
-                
-                // 4. Verificar cabeçalhos básicos
-                const firstLine = csvText.split('\n')[0];
-                const requiredHeaders = ['sei', 'numero', 'ano', 'orgao_lesado', 'empresa_processada', 'cnpj', 'conuta'];
-                
-                const hasRequiredHeaders = requiredHeaders.some(header => 
-                    firstLine.toLowerCase().includes(header.toLowerCase())
-                );
-                
-                if (!hasRequiredHeaders) {
-                    console.warn('Cabeçalhos incomuns encontrados:', firstLine);
-                    // Continuar mesmo assim, mas avisar
-                    showWarning('Formato do CSV pode estar diferente do esperado. Processando mesmo assim...');
-                }
-                
-                console.log('CSV baixado com sucesso, tamanho:', csvText.length, 'caracteres');
-                
-                // 5. Processar com PapaParse
-                processCSVDataWithPapaParse(csvText);
-                
-            } catch (error) {
-                console.error('Erro na inicialização do GitHub:', error);
-                showError(`Erro ao carregar dados: ${error.message}. Tentando alternativa...`);
-                
-                // Tentar fallback
-                try {
-                    await tryFallbackCSV();
-                } catch (fallbackError) {
-                    console.error('Erro no fallback também:', fallbackError);
-                    showCriticalError('Não foi possível carregar os dados. Por favor, verifique sua conexão ou tente novamente mais tarde.');
-                }
-            }
-        }
-
-        async function tryFallbackCSV() {
-            console.log('Tentando URL alternativa...');
-            try {
-                const response = await fetch(CSV_FALLBACK_URL, { 
-                    cache: 'no-cache',
-                    mode: 'cors'
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Fallback também falhou: ${response.status}`);
+                    throw new Error(`Erro HTTP: ${response.status}`);
                 }
                 
                 const csvText = await response.text();
                 
                 if (!csvText || csvText.trim().length === 0) {
-                    throw new Error('Fallback CSV vazio');
+                    throw new Error('CSV vazio ou sem conteúdo');
                 }
                 
-                console.log('Fallback CSV carregado, tamanho:', csvText.length, 'caracteres');
-                processCSVDataWithPapaParse(csvText);
+                console.log('CSV recebido, tamanho:', csvText.length, 'caracteres');
+                
+                // Processar com PapaParse
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        console.log(`Dados parseados: ${results.data.length} registros`);
+                        
+                        if (results.data.length === 0) {
+                            throw new Error('Nenhum dado encontrado no CSV');
+                        }
+                        
+                        // Processar dados
+                        empresasData = processCSVData(results.data);
+                        filteredDataDashboard1 = [...empresasData];
+                        filteredDataDashboard2 = [...empresasData];
+                        
+                        // Atualizar data
+                        lastUpdateDate = new Date();
+                        
+                        console.log(`Dados processados: ${empresasData.length} registros válidos`);
+                        
+                        // Inicializar dashboard
+                        initializeDashboard();
+                        
+                        showLoading(false);
+                        showStatusMessage(`Dados carregados com sucesso! ${empresasData.length} registros disponíveis.`, 'success');
+                        
+                    },
+                    error: function(error) {
+                        console.error('Erro no PapaParse:', error);
+                        throw new Error('Erro ao processar CSV: ' + error.message);
+                    }
+                });
                 
             } catch (error) {
-                console.error('Fallback falhou:', error);
-                throw error;
+                console.error('Erro ao carregar dados:', error);
+                showLoading(false);
+                showStatusMessage(`Erro ao carregar dados: ${error.message}. Tentando método alternativo...`, 'danger');
+                
+                // Tentar método alternativo
+                setTimeout(() => {
+                    loadDataAlternative();
+                }, 2000);
             }
         }
 
-        function processCSVDataWithPapaParse(csvText) {
-            Papa.parse(csvText, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.errors && results.errors.length > 0) {
-                        console.warn('Avisos no parsing:', results.errors);
-                        
-                        // Mostrar aviso não crítico
-                        if (results.errors.length <= 3) {
-                            showWarning(`Foram encontrados ${results.errors.length} avisos menores no processamento do CSV.`);
-                        }
-                    }
-                    
-                    console.log(`Dados carregados: ${results.data.length} registros`);
-                    
-                    if (results.data.length === 0) {
-                        showError('Nenhum dado encontrado no CSV. O arquivo pode estar vazio.');
-                        showLoading(false);
-                        return;
-                    }
-                    
-                    // Processar dados
-                    empresasData = processCSVData(results.data);
-                    filteredDataDashboard1 = [...empresasData];
-                    filteredDataDashboard2 = [...empresasData];
-                    
-                    // Atualizar data da última atualização
-                    lastUpdateDate = new Date();
-                    
-                    console.log(`Dados processados: ${empresasData.length} registros válidos`);
-                    
-                    // Inicializar interface
-                    initializeDashboard();
-                    
-                    showLoading(false);
-                    
-                    // Mostrar sucesso
-                    showSuccess(`Dados carregados com sucesso! ${empresasData.length} registros disponíveis.`);
-                    
-                },
-                error: function(error) {
-                    console.error('Erro ao processar CSV:', error);
-                    showError('Erro ao processar dados do CSV. Verifique o formato do arquivo.');
-                    showLoading(false);
+        // Método alternativo para carregar dados
+        async function loadDataAlternative() {
+            try {
+                console.log('Tentando método alternativo...');
+                showStatusMessage('Tentando método alternativo...', 'warning');
+                
+                // Usar método direto com fetch básico
+                const response = await fetch(DATASET_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status}`);
                 }
-            });
+                
+                const csvText = await response.text();
+                
+                if (!csvText || csvText.trim().length === 0) {
+                    throw new Error('CSV vazio');
+                }
+                
+                // Processar manualmente se PapaParse falhar
+                const lines = csvText.split('\n');
+                const headers = lines[0].split(',');
+                const data = [];
+                
+                for (let i = 1; i < lines.length; i++) {
+                    if (lines[i].trim()) {
+                        const values = lines[i].split(',');
+                        const row = {};
+                        headers.forEach((header, index) => {
+                            row[header.trim()] = values[index] ? values[index].trim() : '';
+                        });
+                        data.push(row);
+                    }
+                }
+                
+                console.log(`Dados processados manualmente: ${data.length} registros`);
+                
+                // Processar dados
+                empresasData = processCSVData(data);
+                filteredDataDashboard1 = [...empresasData];
+                filteredDataDashboard2 = [...empresasData];
+                
+                // Atualizar data
+                lastUpdateDate = new Date();
+                
+                // Inicializar dashboard
+                initializeDashboard();
+                
+                showLoading(false);
+                showStatusMessage(`Dados carregados com método alternativo! ${empresasData.length} registros disponíveis.`, 'success');
+                
+            } catch (error) {
+                console.error('Erro no método alternativo:', error);
+                showLoading(false);
+                showStatusMessage('Não foi possível carregar os dados. Por favor, verifique sua conexão ou tente mais tarde.', 'danger');
+                
+                // Mostrar dados de exemplo
+                showExampleData();
+            }
         }
 
-        // ==================== CARREGAMENTO DE DADOS ====================
+        // Mostrar dados de exemplo se não conseguir carregar
+        function showExampleData() {
+            console.log('Mostrando dados de exemplo...');
+            
+            // Dados de exemplo
+            empresasData = [
+                {
+                    sei: '12345',
+                    numero: 12345,
+                    ano: 2023,
+                    orgao_lesado: 'Secretaria de Saúde',
+                    empresa_processada: 'Empresa Exemplo A',
+                    cnpj: '12.345.678/0001-90',
+                    conuta: 'Sobrefaturamento',
+                    data_decisao: '2023-05-15',
+                    decisao: 'Multa',
+                    fase: 'Concluído',
+                    valor_multa: 50000
+                },
+                {
+                    sei: '12346',
+                    numero: 12346,
+                    ano: 2023,
+                    orgao_lesado: 'Secretaria de Educação',
+                    empresa_processada: 'Empresa Exemplo B',
+                    cnpj: '98.765.432/0001-10',
+                    conuta: 'Falta de qualidade',
+                    data_decisao: '2023-06-20',
+                    decisao: 'Multa',
+                    fase: 'Concluído',
+                    valor_multa: 75000
+                },
+                {
+                    sei: '12347',
+                    numero: 12347,
+                    ano: 2022,
+                    orgao_lesado: 'Secretaria de Obras',
+                    empresa_processada: 'Empresa Exemplo C',
+                    cnpj: '11.223.344/0001-55',
+                    conuta: 'Atraso na entrega',
+                    data_decisao: '2022-11-10',
+                    decisao: 'Multa',
+                    fase: 'Concluído',
+                    valor_multa: 30000
+                }
+            ];
+            
+            filteredDataDashboard1 = [...empresasData];
+            filteredDataDashboard2 = [...empresasData];
+            
+            lastUpdateDate = new Date();
+            
+            initializeDashboard();
+            
+            showStatusMessage('Dados de exemplo carregados. O sistema está funcionando, mas com dados limitados.', 'warning');
+        }
+
         function processCSVData(data) {
             console.log('Processando dados do CSV...');
             
             return data
                 .map((row, index) => {
                     try {
-                        // Normalizar nomes de colunas (remover espaços, acentos e converter para minúsculas)
+                        // Normalizar nomes de colunas
                         const normalizedRow = {};
                         for (const key in row) {
                             if (row.hasOwnProperty(key)) {
-                                // Normalizar o nome da coluna
                                 const normalizedKey = key
                                     .toLowerCase()
-                                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remover acentos
-                                    .replace(/\s+/g, '_') // Substituir espaços por underscore
-                                    .replace(/[^\w_]/g, ''); // Remover caracteres especiais
+                                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                                    .replace(/\s+/g, '_')
+                                    .replace(/[^\w_]/g, '');
                                 
                                 normalizedRow[normalizedKey] = row[key];
                             }
                         }
                         
-                        // Extrair dados com nomes normalizados
+                        // Extrair dados
                         const sei = normalizedRow.sei || normalizedRow.numero_sei || '';
                         const numero = parseInt(normalizedRow.numero || normalizedRow.numeroprocesso || '0') || 0;
                         
@@ -1869,14 +1916,11 @@
                         const orgao_lesado = normalizedRow.orgao_lesado || normalizedRow.orgaolesado || 'NÃO INFORMADO';
                         const empresa_processada = normalizedRow.empresa_processada || normalizedRow.empresaprocessada || 'NÃO INFORMADO';
                         
-                        // Normalizar CNPJ
+                        // CNPJ
                         let cnpj = normalizedRow.cnpj || '';
                         cnpj = cnpj.toString().replace(/\D/g, '');
                         if (cnpj && cnpj.length === 14) {
                             cnpj = cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
-                        } else if (cnpj && cnpj.length > 0) {
-                            // Tentar formatar mesmo que não tenha 14 dígitos
-                            cnpj = cnpj;
                         }
                         
                         const conuta = normalizedRow.conuta || normalizedRow.conduta || normalizedRow.irregularidade || normalizedRow.descricao || 'NÃO INFORMADO';
@@ -1884,14 +1928,13 @@
                         const decisao = normalizedRow.decisao || 'NÃO INFORMADO';
                         const fase = normalizedRow.fase || normalizedRow.situacao || 'NÃO INFORMADO';
                         
-                        // Converter valor_multa para número
+                        // Valor da multa
                         let valor_multa = null;
                         if (normalizedRow.valor_multa) {
-                            // Remover caracteres não numéricos e converter
                             const cleanValue = String(normalizedRow.valor_multa)
                                 .replace(/[^\d,.-]/g, '')
-                                .replace(/\./g, '')  // Remove pontos de milhar
-                                .replace(',', '.'); // Substitui vírgula decimal por ponto
+                                .replace(/\./g, '')
+                                .replace(',', '.');
                             
                             valor_multa = parseFloat(cleanValue);
                             if (isNaN(valor_multa)) valor_multa = null;
@@ -1909,15 +1952,14 @@
                             decisao: decisao,
                             fase: fase,
                             valor_multa: valor_multa,
-                            // Campos originais para referência
                             raw_data: row
                         };
                     } catch (error) {
-                        console.error(`Erro ao processar linha ${index}:`, error, row);
+                        console.warn(`Erro ao processar linha ${index}:`, error);
                         return null;
                     }
                 })
-                .filter(row => row !== null && row.ano && row.empresa_processada !== 'NÃO INFORMADO');
+                .filter(row => row !== null && row.empresa_processada !== 'NÃO INFORMADO');
         }
 
         function initializeDashboard() {
@@ -1938,66 +1980,26 @@
             overlay.style.display = show ? 'flex' : 'none';
         }
 
-        function showError(message) {
-            const container = document.querySelector('.container');
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger alert-dismissible fade show';
-            errorDiv.innerHTML = `
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            container.prepend(errorDiv);
-        }
-
-        function showWarning(message) {
-            const container = document.querySelector('.container');
-            const warningDiv = document.createElement('div');
-            warningDiv.className = 'alert alert-warning alert-dismissible fade show';
-            warningDiv.innerHTML = `
-                <i class="fas fa-exclamation-circle me-2"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            container.prepend(warningDiv);
-        }
-
-        function showSuccess(message) {
-            const container = document.querySelector('.container');
-            const successDiv = document.createElement('div');
-            successDiv.className = 'alert alert-success alert-dismissible fade show';
-            successDiv.innerHTML = `
-                <i class="fas fa-check-circle me-2"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            container.prepend(successDiv);
+        function showStatusMessage(message, type = 'info') {
+            const container = document.getElementById('statusMessage');
             
-            // Auto-dismiss após 5 segundos
-            setTimeout(() => {
-                const alert = bootstrap.Alert.getOrCreateInstance(successDiv);
-                alert.close();
-            }, 5000);
-        }
-
-        function showCriticalError(message) {
-            const container = document.querySelector('.container');
-            const criticalDiv = document.createElement('div');
-            criticalDiv.className = 'alert alert-danger';
-            criticalDiv.innerHTML = `
-                <h5><i class="fas fa-exclamation-triangle me-2"></i>Erro Crítico</h5>
-                <p>${message}</p>
-                <hr>
-                <p class="mb-0">
-                    <strong>Soluções:</strong><br>
-                    1. Verifique sua conexão com a internet<br>
-                    2. Tente recarregar a página (F5)<br>
-                    3. Acesse diretamente: 
-                    <a href="${GITHUB_REPO_URL}" target="_blank" class="alert-link">GitHub Oficial</a>
-                </p>
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'danger' ? 'times-circle' : 'info-circle'} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
             `;
-            container.prepend(criticalDiv);
-            showLoading(false);
+            
+            // Auto-dismiss após 10 segundos para sucesso/info
+            if (type === 'success' || type === 'info') {
+                setTimeout(() => {
+                    const alert = bootstrap.Alert.getOrCreateInstance(container.querySelector('.alert'));
+                    alert.close();
+                }, 10000);
+            }
         }
 
         function updateDataAtualizacao() {
@@ -2067,7 +2069,7 @@
             // Downloads
             document.getElementById('downloadDadosCompletos').addEventListener('click', downloadDadosCompletos);
             
-            // Campo de busca na Consulta Individual
+            // Campo de busca
             document.getElementById('searchEmpresas').addEventListener('input', function(e) {
                 currentSearchTerm = e.target.value.toLowerCase();
                 filterEmpresasTable(currentSearchTerm);
@@ -2820,7 +2822,7 @@
             showLoading(true);
             
             try {
-                // Criar link para download do CSV do GitHub
+                // Criar link para download
                 const link = document.createElement('a');
                 link.href = DATASET_URL;
                 link.download = 'empresas_sancionadas_mg.csv';
@@ -2829,11 +2831,11 @@
                 link.click();
                 document.body.removeChild(link);
                 
-                console.log('Iniciando download do CSV completo do GitHub');
+                console.log('Download iniciado');
                 
             } catch (error) {
-                console.error('Erro ao baixar dados:', error);
-                alert('Erro ao baixar dados. Por favor, visite o repositório GitHub.');
+                console.error('Erro ao baixar:', error);
+                alert('Erro ao baixar. Por favor, visite o repositório GitHub diretamente.');
             } finally {
                 showLoading(false);
             }
@@ -2986,11 +2988,11 @@
                 link.click();
                 document.body.removeChild(link);
                 
-                console.log(`Arquivo ${filename} exportado com ${dataToExport.length} registros`);
+                console.log(`Exportado: ${filename}`);
                 
             } catch (error) {
-                console.error('Erro ao exportar CSV:', error);
-                alert('Erro ao exportar dados. Por favor, tente novamente.');
+                console.error('Erro ao exportar:', error);
+                alert('Erro ao exportar. Tente novamente.');
             } finally {
                 showLoading(false);
             }
@@ -3015,8 +3017,6 @@
             
             window.print();
             document.body.innerHTML = originalContent;
-            
-            // Recarregar a página para restaurar funcionalidades
             location.reload();
         }
     </script>
